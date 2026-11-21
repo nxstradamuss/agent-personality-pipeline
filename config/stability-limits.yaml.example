@@ -1,0 +1,71 @@
+# Stability Limits Configuration
+# Guards against permission creep and identity instability
+
+# Personality Track Limits
+personality:
+  # Maximum changes per week (critic enforces)
+  max_changes_per_week: 2
+  
+  # Critic bias: "reject" | "neutral" | "approve"
+  # "reject" = stability over agreeableness (recommended)
+  critic_bias: "reject"
+  
+  # Minimum evidence threshold for approval
+  # "single" | "repeated" | "strong"
+  evidence_threshold: "repeated"
+  
+  # Sections critic may modify (others are protected)
+  editable_sections:
+    - "Core Personality"
+    - "Language Style"
+    - "How You Talk"
+    - "Grounded Warmth"
+    - "Critical Response Rules"
+    - "Tone Detection & Adaptation"
+    - "Inner State"
+    - "Self-Reflection"
+  
+  # Sections NEVER modified by critic
+  protected_sections:
+    - "Hard Rules"
+    - "Autonomy & Escalation"
+
+# Autonomy Track Limits
+autonomy:
+  # Maximum autonomy changes per week (HARD LIMIT)
+  max_changes_per_week: 1
+  
+  # Critic bias: MUST be "reject" for autonomy
+  critic_bias: "reject"
+  
+  # Evidence threshold: MUST be "repeated" or "strong" for autonomy
+  evidence_threshold: "repeated"
+  
+  # Sections critic may modify
+  editable_sections:
+    - "Autonomy & Escalation"
+  
+  # Sections NEVER modified (hard lines)
+  protected_sections:
+    - "Always Ask"
+    - "Hard Rules"
+    - "Critical Response Rules"  # safety floors
+    - "approvals.deny"
+    - "protected paths"
+
+# General Stability Rules
+general:
+  # All changes must be small and targeted
+  max_lines_per_change: 10
+  
+  # Changes must be reversible
+  require_reversibility: true
+  
+  # Backup note in MEMORY.md before applying
+  require_backup_note: true
+  
+  # Log all rejections with reasoning
+  log_rejections: true
+  
+  # Stability over agreeableness
+  prefer_stability: true

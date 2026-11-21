@@ -1,0 +1,13 @@
+# Local configs (copy from the .example templates)
+config/cron-schedules.yaml
+config/model-pinning.yaml
+config/stability-limits.yaml
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

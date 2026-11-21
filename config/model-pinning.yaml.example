@@ -1,0 +1,18 @@
+# Model Pinning Configuration
+# REQUIRED: Pin model + provider on every cron job to prevent drift
+# When global Hermes config changes, unpinned jobs break with "global inference config drifted"
+
+# Pin these on ALL 4 cron jobs via:
+# cronjob action=update job_id=<ID> model='{"model": "...", "provider": "..."}'
+
+model: "nvidia/nemotron-3-ultra-550b-a55b:free"
+provider: "openrouter"
+
+# Alternative models (update both model + provider together):
+# model: "anthropic/claude-sonnet-4"
+# provider: "anthropic"
+# model: "openai/gpt-4o"
+# provider: "openai"
+
+# Verification:
+# hermes cron list --json | jq '.[] | select(.name | test("Personality|Autonomy")) | {name, model, provider}'

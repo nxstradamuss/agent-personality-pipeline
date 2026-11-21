@@ -1,0 +1,36 @@
+# Cron Schedules Configuration
+# Copy to cron-schedules.yaml and customize for your agent
+
+# Personality Track (weekly)
+personality_review:
+  schedule: "0 6 * * 0"  # Weekly Sunday 06:00 UTC
+  description: "Personality Maturation Review - proposes changes to identity"
+
+personality_critic:
+  schedule: "0 7 * * 0"  # Weekly Sunday 07:00 UTC (1 hour after review)
+  description: "Personality Change Critic - evaluates and applies proposals"
+
+# Autonomy Track (every 3 days)
+autonomy_review:
+  schedule: "0 21 */3 * *"  # Every 3 days at 21:00 UTC
+  description: "Autonomy Maturation Review - proposes boundary changes"
+
+autonomy_critic:
+  schedule: "0 22 */3 * *"  # Every 3 days at 22:00 UTC (1 hour after review)
+  description: "Autonomy Change Critic - evaluates boundary proposals"
+
+# Delivery settings
+delivery:
+  review: "local"      # Reviews: silent, file-only
+  critic: "origin"     # Critics: notify on change
+
+# Toolsets required for all jobs
+enabled_toolsets:
+  - "file"
+  - "delegation"
+  - "terminal"
+  - "session_search"
+
+# Skills array MUST be empty to avoid "skill not found" warnings
+# Reviews/critics use toolsets, not skills
+skills: []
