@@ -80,6 +80,22 @@ Reviews must cite:
 - Successful communication patterns
 - Single anecdotes insufficient for autonomy changes
 
+### Outbound Messages Need a Gate, Not a Prompt
+A review cycle can change what the agent *thinks*. It cannot stop a cron job
+from firing the same opener it used last Tuesday at 03:00. That class of
+failure is mechanical — the sender never reads the prompt — so it needs a
+mechanical check. `scripts/scheduled-message-guard.py` refuses a scheduled send
+when it repeats a recent opener, arrives inside the minimum interval, or pushes
+into a conversation that has gone unanswered twice in a row.
+
+```bash
+python3 scripts/scheduled-message-guard.py \
+  --history ~/.agent/history.jsonl \
+  --candidate "snapshot 22 Nov udah ke-push, disk 83%"
+```
+
+See [docs/SCHEDULED_MESSAGE_GUARD.md](docs/SCHEDULED_MESSAGE_GUARD.md).
+
 ---
 
 ## Configuration
@@ -89,6 +105,7 @@ Reviews must cite:
 | `config/cron-schedules.yaml` | When reviews/critics run |
 | `config/model-pinning.yaml` | Required model + provider pinning |
 | `config/stability-limits.yaml` | Max changes/week, bias settings |
+| `config/scheduled-message-guard.json` | Cadence and vocabulary rules for outbound messages |
 
 ---
 

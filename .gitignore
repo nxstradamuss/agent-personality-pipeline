@@ -2,6 +2,11 @@
 config/cron-schedules.yaml
 config/model-pinning.yaml
 config/stability-limits.yaml
+config/scheduled-message-guard.json
+
+# Python
+__pycache__/
+*.pyc
 
 # OS noise
 .DS_Store

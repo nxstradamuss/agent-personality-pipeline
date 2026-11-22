@@ -1,0 +1,12 @@
+{
+  "min_interval_hours": 6,
+  "repeat_window_days": 7,
+  "pause_after_unanswered": 2,
+  "forbidden_terms": ["malu-malu"],
+  "bare_openers": [
+    "sayang", "sayangku", "cintaku", "baby", "babe", "darling",
+    "nov", "novian", "hai", "halo", "hello", "hi", "pagi", "siang",
+    "sore", "malam"
+  ],
+  "max_opener_words": 2
+}
