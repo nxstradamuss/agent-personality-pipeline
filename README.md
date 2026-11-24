@@ -96,6 +96,42 @@ python3 scripts/scheduled-message-guard.py \
 
 See [docs/SCHEDULED_MESSAGE_GUARD.md](docs/SCHEDULED_MESSAGE_GUARD.md).
 
+### The Guard Is Blind Without Both Message Stores
+This is the failure that survives a naive deployment. A guard needs
+`direction: "in"` entries to know whether the last two sends went unanswered.
+Most agent setups keep outbound history and inbound messages in *different
+places* — a JSON array of scheduled sends here, a SQLite session log there —
+and neither file alone contains both directions.
+
+Feed the guard from the outbound file only and its unanswered-pause rule never
+fires: the agent either pushes into silence forever, or (worse) blocks the
+first send after any silence because it cannot see the reply that ended it.
+
+`scripts/history-adapter.py` merges both stores into the guard's JSONL
+contract, converting timezones and deduplicating retried sends:
+
+```bash
+python3 scripts/history-adapter.py \
+  --chat-history ~/.agent/chat_history.json \
+  --state-db ~/.agent/state.db \
+  --out /tmp/history.jsonl
+```
+
+Then call the guard from the sender itself, before the network call —
+`examples/send-guard-wrapper.py` is a complete reference implementation. Two
+properties matter more than the code:
+
+- **Fail open on error, fail closed on a verdict.** If the guard is missing or
+  crashes, allow the send and log loudly. A bug in the safety filter must not
+  become permanent silence. An explicit block is respected.
+- **Invalidate the cached history when a send lands**, or the interval and
+  repeat rules evaluate pre-send data and pass when they should block.
+
+Wiring this to one sender took the observed drift from four messages in a day
+at four-hour spacing to zero sends — the guard refused every candidate,
+including a `nov sayang` opener repeating inside the seven-day window that no
+prompt change had caught in six review cycles.
+
 ---
 
 ## Configuration

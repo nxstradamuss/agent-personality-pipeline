@@ -44,17 +44,63 @@ One JSON object per line, oldest first:
 An `out` message counts as answered when any `in` entry follows it. Only the
 tail matters for the pause rule: the streak resets on the first reply.
 
+That `in` line is the whole difficulty. An agent typically records scheduled
+sends in one place and conversation turns in another, and neither file holds
+both directions. `scripts/history-adapter.py` merges them:
+
+```bash
+python3 scripts/history-adapter.py \
+  --chat-history ~/.agent/chat_history.json \
+  --state-db ~/.agent/state.db \
+  --out ~/.agent/guard_history.jsonl
+```
+
+Without the inbound half the pause rule can never fire, so the agent pushes
+into silence indefinitely. With the outbound half missing it inverts: the first
+send after any quiet period looks like a first-ever send, and the interval
+check has nothing to measure against.
+
 ## Wiring it into a cron sender
 
-The guard is a filter, not a daemon. Put it in front of the send:
+The guard is a filter, not a daemon. Put it in front of the send, in the
+sender's own language, before the network call:
+
+```python
+from send_guard import allow_send
+
+text = pick_template()
+ok, reason = allow_send(text)
+if not ok:
+    log(f"blocked: {reason}")
+    return              # a blocked send is not an error
+send_message(text)
+append_history(text)    # only after a successful send
+```
+
+`examples/send-guard-wrapper.py` is the complete reference. Two properties
+carry more weight than the code:
+
+- **Fail open on infrastructure error, fail closed on a verdict.** Missing
+  guard, unreadable history, or a crash means allow-and-log. A bug in the
+  safety filter must never turn into permanent silence — that failure looks
+  exactly like the agent being dead. An explicit block (exit `1`) is honoured,
+  because that verdict came from working rules.
+- **Invalidate cached history when a send lands.** Caching the merged JSONL for
+  a few minutes is fine; not invalidating on `chat_history` mtime change is not.
+  A stale cache makes the interval and repeat checks evaluate pre-send data and
+  pass when they should block.
+
+Append to the history only *after* a successful send. Recording a blocked
+candidate pollutes the interval and repeat checks — and two copies of one
+retried send will satisfy the unanswered-pause counter all by themselves.
+
+A shell sender works the same way:
 
 ```bash
 #!/bin/bash
-# scheduled-send.sh — refuse to send unless the guard allows it
 set -uo pipefail
-
 HISTORY="$HOME/.agent/history.jsonl"
-CANDIDATE=$(python3 render_message.py)   # whatever picks the template
+CANDIDATE=$(python3 render_message.py)
 
 if ! python3 scripts/scheduled-message-guard.py \
        --history "$HISTORY" --candidate "$CANDIDATE"; then
@@ -67,9 +113,6 @@ printf '{"ts":"%s","direction":"out","text":%s}\n' \
     "$(date -u +%FT%TZ)" "$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$CANDIDATE")" \
     >> "$HISTORY"
 ```
-
-Append to the history only *after* a successful send. Recording a blocked
-candidate pollutes the interval and repeat checks.
 
 ## Tuning
 
@@ -87,7 +130,13 @@ to 1 for an agent whose user rarely replies to pushes, and extend
 python3 -m unittest discover -s tests
 ```
 
-Sixteen cases covering each rule, the boundary conditions (exactly at the
-interval, exactly at the repeat-window edge), and the history parser. The
-parser names the offending line number on bad input rather than failing
-silently.
+Thirty-four cases: sixteen covering each guard rule and its boundary
+conditions (exactly at the interval, exactly at the repeat-window edge), and
+eighteen covering the history adapter — the midnight-wrap timezone case,
+epoch conversion, quoted-reply truncation, read-only enforcement on the
+session DB, and the dedupe behaviour that stops one retried send from
+satisfying the unanswered-pause counter on its own.
+
+The guard's history parser names the offending line number on bad input rather
+than failing silently, and the adapter skips individual malformed rows instead
+of discarding a whole file over one bad timestamp.

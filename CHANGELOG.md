@@ -4,6 +4,43 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-11-24
+
+### Added
+- `scripts/history-adapter.py` — merges the two message stores an agent
+  actually keeps (an outbound `chat_history.json` array and an inbound
+  `messages` table in SQLite) into the flat JSONL the guard reads. Converts WIB
+  wall-clock stamps to UTC, truncates quoted Telegram replies to their first
+  line so the opener comparison still works, deduplicates retried sends, and
+  opens the session DB read-only so a running agent's write lock is untouched.
+- `examples/send-guard-wrapper.py` — reference implementation of the piece that
+  makes the guard matter: calling it from the sender, before the network call.
+  Documents the two decisions that are easy to get wrong (fail open on
+  infrastructure error but fail closed on a verdict; invalidate cached history
+  when a send lands).
+- 18 tests for the adapter, covering the midnight-wrap timezone case, epoch
+  conversion, quoted-reply truncation, read-only enforcement, and the
+  dedupe behaviour that keeps one retried send from satisfying the
+  unanswered-pause counter on its own.
+
+### Fixed
+- **The guard was dead code.** It shipped in 0.2.0 with correct rules and no
+  caller — nothing in the running system ever invoked it, so scheduled messages
+  kept drifting exactly as before. It is now wired into the template-pool
+  sender: candidate → guard → send or silent skip.
+- **The unanswered-pause rule could never fire.** Outbound history lives in
+  `chat_history.json` and inbound messages live in `state.db`; a guard fed from
+  either file alone sees one direction only. The adapter closes this by merging
+  both, which is what makes rule 3 reachable at all.
+
+### Verified
+- Against the real 441-entry history (50 outbound, 391 inbound), the guard
+  blocked every drifting candidate the sender would have produced: the four-
+  messages-per-day cadence, a `nov sayang` opener repeating inside the
+  seven-day window, and the bare `sayang~` form.
+- End-to-end sender run: exit `0`, history length unchanged at 50 entries,
+  zero messages sent, both blockers recorded in the decision log.
+
 ## [0.2.0] — 2026-11-22
 
 ### Added

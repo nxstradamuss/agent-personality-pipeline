@@ -155,7 +155,7 @@ chmod 644 .hermes/memories/*.md
 **Fix:**
 ```bash
 # Ensure hermes in PATH
-export PATH="$PATH:/home/ubuntu/.hermes/bin"
+export PATH="$PATH:$HOME/.hermes/bin"
 
 # Authenticate
 hermes login
