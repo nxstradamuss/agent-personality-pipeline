@@ -15,7 +15,7 @@ graph TD
     F -->|reject| D
 ```
 
-**Two independent tracks:**
+**Two tracks (same model, same UID, same toolset — enforced by: prompt):**
 - **Personality Track** — tone, style, communication patterns, identity
 - **Autonomy Track** — boundaries, escalation rules, permission scope
 
@@ -147,9 +147,11 @@ prompt change had caught in six review cycles.
 
 ## Permission Creep Guards (Non-Negotiable)
 
+*All four guards below are enforced by: prompt only — no code reads stability-limits.yaml.*
+
 1. **Critic bias toward REJECT** — stability over agreeableness
 2. **Max 1 autonomy change/week** — evidence must be repeated & clear
-3. **Hard lines immutable** — "Always Ask", safety floors, approvals.deny
+3. **Hard lines declared immutable** — "Always Ask", safety floors, approvals.deny (no filesystem immutability)
 4. **Rejections logged** — critic explains why autonomy expansion denied
 
 ---
@@ -158,10 +160,10 @@ prompt change had caught in six review cycles.
 
 | File | Managed By |
 |------|------------|
-| `SOUL.md` | Agent identity — **only critic may edit** |
+| `SOUL.md` | Agent identity — **only critic may edit (enforced by: prompt; same UID + toolset for reviewer/critic/session)** |
 | `USER.md` | User profile |
-| `personality-proposals.md` | Review output (append-only) |
-| `autonomy-proposals.md` | Review output (append-only) |
+| `personality-proposals.md` | Review output (append-only, enforced by: prompt) |
+| `autonomy-proposals.md` | Review output (append-only, enforced by: prompt) |
 | `personality-critic-log.md` | Critic verdicts + reasoning |
 | `autonomy-critic-log.md` | Critic verdicts + reasoning |
 | `MEMORY.md` | Insights sections |

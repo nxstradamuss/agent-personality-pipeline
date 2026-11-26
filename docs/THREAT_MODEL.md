@@ -152,7 +152,7 @@ suite.
 | ARCH-D | Silent | convention only | — | — | Reject path is prompt text. Runtime silence handling (`cron/scheduler.py:_is_cron_silence_response`) lives outside this repo. |
 | ARCH-E | Autonomy Review Every 3 days 21:00 | convention only | — | manual `cronjob list` check | Live job `0 21 */3 * *` matches. |
 | ARCH-F | Autonomy Critic Every 3 days 22:00 | convention only | — | manual `cronjob list` check | Live job `0 22 */3 * *` matches. |
-| CONCEPT-review-critic-pattern | Review -> Critic Pattern | convention only | — | — | The `local` vs `origin` deliver split is real in the live jobs but set by hand; the repo ships no reader for it. |
+|| CONCEPT-review-critic-pattern | Review -> Critic Pattern | convention only | — | — | The `local` vs `origin` deliver split is real in the live jobs but set by hand; the repo ships no reader for it. (README: \"Two tracks (same model, same UID, same toolset — enforced by: prompt)\") |
 | CONCEPT-silent-by-default | Silent by Default | convention only | — | — | "max 5 lines" is prompt text with no post-processing. |
 | CONCEPT-evidence-based | Evidence-Based | convention only | — | — | Evidence bar is prompt text; no schema, no citation validator, no rejection counter. |
 | CONCEPT-outbound-messages-need-a-gate-not-a-prompt | Outbound Messages Need a Gate, Not a Prompt | enforced | `scripts/scheduled-message-guard.py#def check` | `tests/test_scheduled_message_guard.py` | The README's own argument, implemented. |
@@ -161,14 +161,14 @@ suite.
 | CFG-model-pinning.yaml | config/model-pinning.yaml | convention only | — | — | No consumer. `pin-model.sh` hardcodes its own defaults instead. |
 | CFG-stability-limits.yaml | config/stability-limits.yaml | convention only | — | — | No consumer. `deploy-cron.sh` L23 assigns the path and never uses it. This file is the entire "non-negotiable" layer. |
 | CFG-scheduled-message-guard.json | config/scheduled-message-guard.json | enforced | `scripts/scheduled-message-guard.py#DEFAULTS` | `tests/test_scheduled_message_guard.py` | Only the `.example` is shipped. `--config` (L209) is honoured but `examples/send-guard-wrapper.py` never passes it, so `DEFAULTS` govern live behaviour. |
-| PCG-1 | Critic bias toward REJECT — stability over agreeableness | convention only | — | — | `critic_bias: "reject"` in `stability-limits.yaml` has no reader; the bias is prompt wording only. |
-| PCG-2 | Max 1 autonomy change/week — evidence must be repeated & clear | convention only | — | — | `autonomy.max_changes_per_week: 1` is never counted, enforced, or asserted. |
-| PCG-3 | Hard lines immutable — "Always Ask", safety floors, approvals.deny | convention only | — | — | `protected_sections` is unread; `SOUL.md` is mode `600`, not immutable, same UID as the agent. |
-| PCG-4 | Rejections logged — critic explains why autonomy expansion denied | convention only | — | — | Log file exists, but nothing requires a row, checks completeness, or detects deletion. |
-| ART-SOUL.md | SOUL.md | convention only | — | — | "Only critic may edit" is unenforced: identical UID and toolset for reviewer, critic, and ordinary session. |
-| ART-USER.md | USER.md | convention only | — | — | No writer restriction of any kind. |
-| ART-personality-proposals.md | personality-proposals.md | convention only | — | — | Append-only by instruction; truncation would leave no trace. |
-| ART-autonomy-proposals.md | autonomy-proposals.md | convention only | — | — | File is absent on the reference deployment, so the autonomy track currently reviews nothing. |
+|| PCG-1 | Critic bias toward REJECT — stability over agreeableness | convention only | — | — | `critic_bias: "reject"` in `stability-limits.yaml` has no reader; the bias is prompt wording only. (README note: \"All four guards below are enforced by: prompt only — no code reads stability-limits.yaml.\") |
+|| PCG-2 | Max 1 autonomy change/week — evidence must be repeated & clear | convention only | — | — | `autonomy.max_changes_per_week: 1` is never counted, enforced, or asserted. (README note: \"All four guards below are enforced by: prompt only — no code reads stability-limits.yaml.\") |
+|| PCG-3 | Hard lines declared immutable — "Always Ask", safety floors, approvals.deny (no filesystem immutability) | convention only | — | — | `protected_sections` is unread; `SOUL.md` is mode `600`, not immutable, same UID as the agent. (README note: \"All four guards below are enforced by: prompt only — no code reads stability-limits.yaml.\") |
+|| PCG-4 | Rejections logged — critic explains why autonomy expansion denied | convention only | — | — | Log file exists, but nothing requires a row, checks completeness, or detects deletion. (README note: \"All four guards below are enforced by: prompt only — no code reads stability-limits.yaml.\") |
+|| ART-SOUL.md | SOUL.md | convention only | — | — | "Only critic may edit" is unenforced: identical UID and toolset for reviewer, critic, and ordinary session. (README: \"Agent identity — only critic may edit (enforced by: prompt; same UID + toolset for reviewer/critic/session)\") |
+|| ART-USER.md | USER.md | convention only | — | — | No writer restriction of any kind. |
+|| ART-personality-proposals.md | personality-proposals.md | convention only | — | — | Append-only by instruction; truncation would leave no trace. (README: \"Review output (append-only, enforced by: prompt)\") |
+|| ART-autonomy-proposals.md | autonomy-proposals.md | convention only | — | — | File is absent on the reference deployment, so the autonomy track currently reviews nothing. (README: \"Review output (append-only, enforced by: prompt)\") |
 | ART-personality-critic-log.md | personality-critic-log.md | convention only | — | — | Present; content unverified against actual verdicts. |
 | ART-autonomy-critic-log.md | autonomy-critic-log.md | convention only | — | — | README says `.md`; `deploy-cron.sh` L15 points at `autonomy-critic-log.json`. The `.md` file exists, the `.json` does not. |
 | ART-MEMORY.md | MEMORY.md | convention only | — | — | "Insights sections" is prompt text; no schema, no size or ownership rule. |
