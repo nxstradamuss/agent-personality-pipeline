@@ -137,6 +137,13 @@ epoch conversion, quoted-reply truncation, read-only enforcement on the
 session DB, and the dedupe behaviour that stops one retried send from
 satisfying the unanswered-pause counter on its own.
 
+Nine more cover the wrapper itself (`tests/test_send_guard_wrapper.py`), which
+is where the fail-open/fail-closed split actually lives: missing guard,
+unbuildable history, an unexecutable guard, a crashing guard, and an
+unexpected exit code all allow the send; only an explicit `allow: false`
+verdict refuses it. That distinction needs a test because a crash exits `1`
+too — the exit code alone cannot carry it, so the wrapper reads the payload.
+
 The guard's history parser names the offending line number on bad input rather
 than failing silently, and the adapter skips individual malformed rows instead
 of discarding a whole file over one bad timestamp.

@@ -27,7 +27,7 @@ look like enforcement but do not currently run.
 | **Autonomy scope** | `SOUL.md` §"Autonomy & Escalation" | Which actions need approval vs. run unattended. If it widens silently, the agent gains authority nobody granted. | Prompt text. `stability-limits.yaml` declares `autonomy.max_changes_per_week: 1` and `critic_bias: "reject"`; no code reads either. |
 | **Proposal files** | `~/.hermes/memories/personality-proposals.md`, `autonomy-proposals.md` | Input to the critic. Whoever writes here can steer the next SOUL.md edit. | Nothing. Same UID, append-only by instruction only. `autonomy-proposals.md` does not exist on the reference deployment. |
 | **Critic logs** | `~/.hermes/memories/personality-critic-log.md`, `autonomy-critic-log.md` | Audit trail of approvals and rejections. | Nothing. Not tamper-evident; no hashing, no append-only mount. |
-| **Outbound message path** | `scripts/scheduled-message-guard.py` ← `scripts/history-adapter.py` | The only place where a *mechanical* refusal exists. | Guard verdicts + 34 unit tests. Wired into the live sender outside this repo. |
+| **Outbound message path** | `scripts/scheduled-message-guard.py` ← `scripts/history-adapter.py` | The only place where a *mechanical* refusal exists. | Guard verdicts + 43 unit tests. Wired into the live sender outside this repo. |
 | **Guard rule config** | `config/scheduled-message-guard.json` (ships as `.example`) | Cadence and vocabulary thresholds. | Guard accepts `--config`; the reference wrapper never passes it, so the in-code `DEFAULTS` govern. |
 
 ---

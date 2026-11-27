@@ -10,7 +10,14 @@ Design notes worth keeping when you adapt this:
    If the guard is missing or crashes, allow the send and log loudly. A bug in
    the safety filter must not become permanent silence -- that is
    indistinguishable from the agent being broken. But when the guard returns
-   an explicit block (exit 1), respect it: that verdict came from working rules.
+   an explicit block, respect it: that verdict came from working rules.
+
+   The subtlety is that a crash and a block both exit 1. An uncaught exception
+   in the guard exits 1 exactly like `sys.exit(1)` does, so the exit code alone
+   cannot carry the decision. What separates them is the payload: a real
+   verdict is the JSON object the guard prints under `--json`, with
+   `allow: false`. Exit 1 without one is a crash, and is treated as such.
+   Treating every exit 1 as a block turns a broken guard into a mute agent.
 
 2. **Rebuild history when a send lands.**
    Cache the JSONL for a few minutes to avoid re-querying SQLite on every
@@ -82,6 +89,20 @@ def build_history(force: bool = False) -> Path | None:
     return CACHE
 
 
+def parse_verdict(stdout: str) -> dict | None:
+    """Return the guard's JSON verdict, or None when there isn't one.
+
+    The wrapper always calls the guard with `--json`, so a guard that decided
+    something always prints an object. Anything else -- a traceback, an empty
+    stream, a bare string -- means the process died before it could decide.
+    """
+    try:
+        payload = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
 def allow_send(text: str) -> tuple[bool, str]:
     if not GUARD.exists():
         log("guard-missing -> allowing")
@@ -100,13 +121,20 @@ def allow_send(text: str) -> tuple[bool, str]:
         log(f"guard-error {exc} -> allowing")
         return True, "guard-error"
 
-    if res.returncode == 1:
-        try:
-            reason = "; ".join(json.loads(res.stdout).get("blockers", [])) or "blocked"
-        except (json.JSONDecodeError, AttributeError):
-            reason = "blocked"
+    verdict = parse_verdict(res.stdout)
+
+    if res.returncode == 1 and verdict is not None and verdict.get("allow") is False:
+        reason = "; ".join(verdict.get("blockers") or []) or "blocked"
         log(f"BLOCK {reason} | text={text[:80]!r}")
         return False, reason
+    if res.returncode == 1:
+        # Exit 1 with no readable verdict is a crash, not a decision -- an
+        # uncaught exception exits 1 too. Fail open so that a bug in the rules
+        # cannot mute the agent, and log the stderr so the bug stays visible.
+        detail = res.stderr.strip().splitlines()
+        tail = detail[-1][:200] if detail else "no output"
+        log(f"guard-error rc=1 without a verdict ({tail}) -> allowing")
+        return True, "guard-error"
     if res.returncode == 0:
         log(f"ALLOW | text={text[:80]!r}")
         return True, "ok"
