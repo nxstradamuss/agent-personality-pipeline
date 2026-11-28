@@ -9,18 +9,19 @@ usually "allow" when the answer should have been "block", because a guard that
 cannot read its history either crashes (exit 1, indistinguishable from a block
 by code alone) or sees an empty history and allows everything.
 
-Three groups of tests live here:
+Two groups of tests live here:
 
-* **Regression tests** — behaviour that already works and must keep working
-  (timezone normalisation, empty history, the exit-code contract).
-* **Bug tests** — marked `expectedFailure` in the red-first commit. Each one
-  documents a defect that was reproduced before it was fixed.
+* **Regression tests** — behaviour that works and must keep working (timezone
+  normalisation, empty history, the exit-code contract, and the defects fixed
+  in this branch, which were pinned as `expectedFailure` in the red-first
+  commit and un-marked once the fix landed).
 * **Known gaps** — marked `expectedFailure` and left that way, because fixing
   them is a separate decision. Each says so in its docstring.
 
 `unittest.expectedFailure` is strict: if a marked test starts passing, the run
 fails with "unexpected success". That is deliberate — it stops a fix from
-silently outrunning the test that documents the bug.
+silently outrunning the test that documents the bug, and it stops a known gap
+from being quietly closed without anyone updating this file.
 
 Run: python3 -m unittest discover -s tests
 """
@@ -178,31 +179,24 @@ class MalformedJsonlTests(TempDirTestCase):
         self.assertIn(needle, message, f"error should name the line: {message}")
         return message
 
-    @unittest.expectedFailure
     def test_a_json_array_line_is_bad_input(self):
         self.assertBadInput("[1,2,3]\n")
 
-    @unittest.expectedFailure
     def test_a_json_string_line_is_bad_input(self):
         self.assertBadInput('"hi"\n')
 
-    @unittest.expectedFailure
     def test_a_json_null_line_is_bad_input(self):
         self.assertBadInput("null\n")
 
-    @unittest.expectedFailure
     def test_a_json_number_line_is_bad_input(self):
         self.assertBadInput("42\n")
 
-    @unittest.expectedFailure
     def test_a_non_string_ts_is_bad_input(self):
         self.assertBadInput('{"ts":123,"direction":"out","text":"x"}\n')
 
-    @unittest.expectedFailure
     def test_a_null_ts_is_bad_input(self):
         self.assertBadInput('{"ts":null,"direction":"out","text":"x"}\n')
 
-    @unittest.expectedFailure
     def test_an_unknown_direction_is_bad_input(self):
         """An unrecognised direction is silently ignored by the streak counter.
 
@@ -212,11 +206,9 @@ class MalformedJsonlTests(TempDirTestCase):
         """
         self.assertBadInput('{"ts":"2026-11-24T02:00:00Z","direction":"sideways","text":"x"}\n')
 
-    @unittest.expectedFailure
     def test_a_non_string_text_is_bad_input(self):
         self.assertBadInput('{"ts":"2026-11-24T02:00:00Z","direction":"out","text":123}\n')
 
-    @unittest.expectedFailure
     def test_the_line_number_points_at_the_offending_line(self):
         content = "\n".join([
             json.dumps({"ts": "2026-11-24T02:00:00Z", "direction": "out", "text": "oke"}),
@@ -248,12 +240,10 @@ class ExitCodeContractTests(TempDirTestCase):
             json.dumps({"ts": "2026-11-24T02:00:00Z", "direction": "out", "text": "oke"}) + "\n"
         )
 
-    @unittest.expectedFailure
     def test_a_corrupt_line_exits_2_not_1(self):
         path = self.write_jsonl("[1,2,3]\n")
         self.assertEqual(guard.main(["--history", str(path), "--candidate", CANDIDATE]), 2)
 
-    @unittest.expectedFailure
     def test_an_unexpected_failure_exits_2_not_1(self):
         """The net catches what the per-line validation did not anticipate."""
         def boom(*args, **kwargs):
@@ -353,7 +343,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
     def merged(self, *groups, window=120):
         return adapter.merge(*groups, dedupe_window_seconds=window)
 
-    @unittest.expectedFailure
     def test_a_retry_seven_seconds_later_is_collapsed(self):
         merged = self.merged(
             [out_entry(BASE, self.TEXT)],
@@ -361,7 +350,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
         )
         self.assertEqual(len(merged), 1, "a re-stamped retry is one message, not two")
 
-    @unittest.expectedFailure
     def test_boundary_119_seconds_is_collapsed(self):
         merged = self.merged(
             [out_entry(BASE, self.TEXT)],
@@ -369,7 +357,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
         )
         self.assertEqual(len(merged), 1)
 
-    @unittest.expectedFailure
     def test_boundary_120_seconds_is_collapsed(self):
         """The window is inclusive: "within N seconds" includes N."""
         merged = self.merged(
@@ -378,7 +365,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
         )
         self.assertEqual(len(merged), 1)
 
-    @unittest.expectedFailure
     def test_boundary_121_seconds_is_kept(self):
         merged = self.merged(
             [out_entry(BASE, self.TEXT)],
@@ -386,7 +372,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
         )
         self.assertEqual(len(merged), 2, "outside the window is a real second send")
 
-    @unittest.expectedFailure
     def test_identical_texts_hours_apart_are_not_collapsed(self):
         merged = self.merged(
             [out_entry(BASE, self.TEXT)],
@@ -394,7 +379,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
         )
         self.assertEqual(len(merged), 2)
 
-    @unittest.expectedFailure
     def test_inbound_duplicates_are_not_collapsed(self):
         """A person can send "ok" twice in five seconds. That is not a retry."""
         merged = self.merged(
@@ -403,7 +387,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
         )
         self.assertEqual(len(merged), 2)
 
-    @unittest.expectedFailure
     def test_different_texts_within_the_window_are_not_collapsed(self):
         merged = self.merged(
             [out_entry(BASE, self.TEXT)],
@@ -411,23 +394,19 @@ class RetriedSendDedupeTests(unittest.TestCase):
         )
         self.assertEqual(len(merged), 2)
 
-    @unittest.expectedFailure
     def test_the_earliest_copy_is_the_one_kept(self):
         later = out_entry(BASE + timedelta(seconds=7), self.TEXT)
         earlier = out_entry(BASE, self.TEXT)
         merged = self.merged([later], [earlier])
         self.assertEqual(merged[0]["ts"], iso(BASE))
 
-    @unittest.expectedFailure
     def test_an_out_and_an_in_with_the_same_text_are_both_kept(self):
         merged = self.merged([out_entry(BASE, "ok")], [in_entry(BASE, "ok")])
         self.assertEqual(len(merged), 2)
 
-    @unittest.expectedFailure
     def test_the_default_window_is_two_minutes(self):
         self.assertEqual(adapter.DEFAULT_DEDUPE_WINDOW, 120)
 
-    @unittest.expectedFailure
     def test_the_window_can_be_disabled(self):
         merged = self.merged(
             [out_entry(BASE, self.TEXT)],
@@ -436,7 +415,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
         )
         self.assertEqual(len(merged), 2)
 
-    @unittest.expectedFailure
     def test_the_cli_exposes_the_window(self):
         tmp = Path(tempfile.mkdtemp())
         chat = tmp / "chat_history.json"
@@ -452,7 +430,6 @@ class RetriedSendDedupeTests(unittest.TestCase):
         self.assertEqual(len(out.read_text(encoding="utf-8").splitlines()), 1,
                          "identical stamps are exact duplicates regardless of the window")
 
-    @unittest.expectedFailure
     def test_a_collapsed_retry_does_not_satisfy_the_pause_rule(self):
         """The point of the dedupe: two copies must not read as two sends."""
         merged = self.merged(

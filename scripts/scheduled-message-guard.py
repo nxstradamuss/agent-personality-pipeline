@@ -77,16 +77,53 @@ def parse_ts(raw: str) -> datetime:
 
 
 def load_history(path: Path) -> list[Entry]:
+    """Read the JSONL history, rejecting anything that is not a valid record.
+
+    Every malformed shape raises ValueError naming the file and line. That is
+    the guard's "bad input" contract (exit 2), and it has to be exhaustive:
+    exit 1 means "blocked", so a shape that escapes as an uncaught traceback
+    would be indistinguishable from a verdict to anything reading only the
+    exit code. The wrapper fails open on a crash, so a corrupt line would
+    silently disable the gate instead of stopping the send.
+
+    Validating the shape explicitly, rather than leaning on whichever
+    KeyError/TypeError a bad row happens to raise, also catches the quiet
+    cases -- a misspelled `direction` is invisible to `unanswered_streak`,
+    which only compares against "in" and "out".
+    """
     entries: list[Entry] = []
     for lineno, line in enumerate(path.read_text().splitlines(), 1):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
+
+        def bad(reason: str) -> ValueError:
+            return ValueError(f"{path}:{lineno}: {reason}")
+
         try:
             row = json.loads(line)
-            entries.append(Entry(parse_ts(row["ts"]), row["direction"], row.get("text", "")))
-        except (json.JSONDecodeError, KeyError, ValueError) as exc:
-            raise ValueError(f"{path}:{lineno}: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise bad(f"not valid JSON: {exc}") from exc
+
+        if not isinstance(row, dict):
+            raise bad(f"expected a JSON object, got {type(row).__name__}")
+        for key in ("ts", "direction"):
+            if key not in row:
+                raise bad(f"missing required field {key!r}")
+        if not isinstance(row["ts"], str):
+            raise bad(f"'ts' must be a string, got {type(row['ts']).__name__}")
+        if row["direction"] not in ("in", "out"):
+            raise bad(f"'direction' must be 'in' or 'out', got {row['direction']!r}")
+        text = row.get("text", "")
+        if not isinstance(text, str):
+            raise bad(f"'text' must be a string, got {type(text).__name__}")
+
+        try:
+            ts = parse_ts(row["ts"])
+        except ValueError as exc:
+            raise bad(str(exc)) from exc
+
+        entries.append(Entry(ts, row["direction"], text))
     entries.sort(key=lambda e: e.ts)
     return entries
 
@@ -201,7 +238,7 @@ def check(
     return verdict
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--history", required=True, type=Path, help="JSONL of past messages")
     ap.add_argument("--candidate", help="message text to check")
@@ -241,6 +278,27 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  ! {item}")
 
     return 0 if verdict.allow else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the guard, turning any unexpected failure into exit 2.
+
+    Exit 1 means "blocked". An uncaught traceback also exits 1, so to anything
+    reading only the exit code a crash and a verdict are the same thing -- and
+    the wrapper, which fails open on a crash, would let the send through. The
+    net sits at the top because catching exception types one at a time only
+    waits for the next unhandled one.
+
+    SystemExit is re-raised so argparse keeps its own contract: `--help` still
+    exits 0, and a usage error still exits 2.
+    """
+    try:
+        return _run(argv)
+    except SystemExit:
+        raise
+    except Exception as exc:  # the net is the point; nothing should escape
+        print(f"error: unexpected failure: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

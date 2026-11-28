@@ -139,12 +139,56 @@ def load_inbound(path: Path) -> list[dict[str, Any]]:
     return out
 
 
-def merge(*groups: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Concatenate and sort chronologically, dropping exact duplicates.
+DEFAULT_DEDUPE_WINDOW = 120
+"""Seconds within which two outbound copies of the same text are one send.
 
-    Dedupe matters because a retried cron send can appear twice in
-    chat_history.json; two copies of one message would satisfy the guard's
-    "unanswered" counter on its own and pause sending spuriously.
+The guard's minimum interval is hours, so two identical scheduled sends two
+minutes apart can only be a retry, never two deliberate messages. A retry
+that re-stamps `sent_at` a few seconds later used to survive as two entries,
+and two copies of one message satisfy the guard's "N unanswered in a row"
+counter on their own -- pausing a healthy sender.
+"""
+
+
+def _instant(ts: str) -> datetime | None:
+    """Parse an adapter-emitted timestamp, tolerating anything unexpected.
+
+    A timestamp that will not parse simply opts out of the retry window rather
+    than crashing the merge; the exact-key dedupe above has already run.
+    """
+    try:
+        return _parse_iso(ts)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_iso(ts: str) -> datetime:
+    raw = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
+    parsed = datetime.fromisoformat(raw)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def merge(
+    *groups: Iterable[dict[str, Any]],
+    dedupe_window_seconds: int = DEFAULT_DEDUPE_WINDOW,
+) -> list[dict[str, Any]]:
+    """Concatenate and sort chronologically, dropping duplicates.
+
+    Two kinds of duplicate are dropped:
+
+    * **Exact** — same `(ts, direction, text)` in any direction. A literal
+      double-write of one row.
+    * **Retried send** — same direction (`out` only), same text, timestamps
+      within `dedupe_window_seconds`. A retried cron send re-stamps `sent_at`,
+      so the exact key does not catch it. The earliest copy is the one kept:
+      at an hours-scale interval the choice barely matters, but picking a
+      fixed end keeps the output deterministic.
+
+    The window deliberately does not apply to inbound. A person can send "ok"
+    twice in five seconds; collapsing those would invent a conversation that
+    did not happen and can hide a real reply.
     """
     seen: set[tuple[str, str, str]] = set()
     merged: list[dict[str, Any]] = []
@@ -156,7 +200,23 @@ def merge(*groups: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             seen.add(key)
             merged.append(entry)
     merged.sort(key=lambda e: e["ts"])
-    return merged
+
+    if dedupe_window_seconds <= 0:
+        return merged
+
+    kept: list[dict[str, Any]] = []
+    last_outbound: dict[str, datetime] = {}
+    for entry in merged:
+        if entry["direction"] == "out":
+            previous = last_outbound.get(entry["text"])
+            current = _instant(entry["ts"])
+            if previous is not None and current is not None:
+                if abs((current - previous).total_seconds()) <= dedupe_window_seconds:
+                    continue  # a retry of the copy already kept
+            if current is not None:
+                last_outbound[entry["text"]] = current
+        kept.append(entry)
+    return kept
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -176,6 +236,14 @@ def main(argv: list[str] | None = None) -> int:
         help="path to Hermes state.db (inbound user messages); optional",
     )
     ap.add_argument("--out", required=True, type=Path, help="output .jsonl path")
+    ap.add_argument(
+        "--dedupe-window",
+        type=int,
+        default=DEFAULT_DEDUPE_WINDOW,
+        metavar="SECONDS",
+        help="collapse outbound copies of the same text sent within this many "
+        f"seconds (default: {DEFAULT_DEDUPE_WINDOW}; 0 disables)",
+    )
     args = ap.parse_args(argv)
 
     if not args.chat_history.exists():
@@ -197,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
             except sqlite3.Error as exc:
                 print(f"warning: {args.state_db}: {exc}, outbound only", file=sys.stderr)
 
-    entries = merge(*groups)
+    entries = merge(*groups, dedupe_window_seconds=args.dedupe_window)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as fh:
         for entry in entries:

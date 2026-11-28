@@ -130,20 +130,36 @@ to 1 for an agent whose user rarely replies to pushes, and extend
 python3 -m unittest discover -s tests
 ```
 
-Thirty-four cases: sixteen covering each guard rule and its boundary
-conditions (exactly at the interval, exactly at the repeat-window edge), and
-eighteen covering the history adapter — the midnight-wrap timezone case,
-epoch conversion, quoted-reply truncation, read-only enforcement on the
-session DB, and the dedupe behaviour that stops one retried send from
-satisfying the unanswered-pause counter on its own.
+One hundred cases across five files.
 
-Nine more cover the wrapper itself (`tests/test_send_guard_wrapper.py`), which
-is where the fail-open/fail-closed split actually lives: missing guard,
-unbuildable history, an unexecutable guard, a crashing guard, and an
-unexpected exit code all allow the send; only an explicit `allow: false`
-verdict refuses it. That distinction needs a test because a crash exits `1`
-too — the exit code alone cannot carry it, so the wrapper reads the payload.
+Sixteen cover each guard rule and its boundary conditions (exactly at the
+interval, exactly at the repeat-window edge). Eighteen cover the history
+adapter — the midnight-wrap timezone case, epoch conversion, quoted-reply
+truncation, read-only enforcement on the session DB, and dedupe.
 
-The guard's history parser names the offending line number on bad input rather
-than failing silently, and the adapter skips individual malformed rows instead
-of discarding a whole file over one bad timestamp.
+Eleven cover the wrapper itself (`tests/test_send_guard_wrapper.py`), which is
+where the fail-open/fail-closed split actually lives: missing guard,
+unbuildable history, an unexecutable guard, a crashing guard, an unexpected
+exit code, and a corrupt-history exit `2` all allow the send; only an explicit
+`allow: false` verdict refuses it. That distinction needs a test because a
+crash exits `1` too — the exit code alone cannot carry it, so the wrapper reads
+the payload.
+
+Forty-four more live in `tests/test_history_adapter_edge_cases.py` and cover
+the seam between the two scripts, which is where a wrong verdict is easiest to
+produce: non-UTC offsets, date-only WIB stamps, malformed JSONL records, an
+empty history, and a retried send that re-stamps `sent_at` by a few seconds.
+The retry window is `--dedupe-window`, default 120s, and applies to outbound
+only — a person can send "ok" twice in five seconds.
+
+The remaining eleven (`tests/test_readme_claims.py`) check that every claim in
+the README maps to a control in the code and a test in `tests/`.
+
+The guard's history parser validates each record's shape and names the
+offending line number rather than failing silently, and anything it does not
+anticipate is caught at the top of `main` and turned into exit `2`. That
+matters because exit `1` means "blocked", so an uncaught traceback would be
+indistinguishable from a verdict — and the wrapper fails open on a crash, so a
+corrupt line would quietly disable the gate. The adapter, on the other side of
+the seam, skips individual malformed rows instead of discarding a whole file
+over one bad timestamp.
