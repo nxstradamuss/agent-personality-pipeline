@@ -127,6 +127,52 @@ class InfrastructureFailureFailsOpen(WrapperTestCase):
         self.assertEqual(reason, "guard-rc-3")
 
 
+    def test_guard_exit_2_fails_open_and_logs(self):
+        """Exit 2 is "bad input", not a verdict — and it must not be silent.
+
+        The guard now rejects a corrupt history line with exit 2, which is the
+        documented contract for bad input. The wrapper must read that as
+        infrastructure trouble (allow + log) rather than as a block, otherwise a
+        single malformed line turns into permanent silence.
+        """
+        self.wrapper.GUARD = self.write_script(
+            "rejecting_guard.py",
+            """
+            import sys
+            print("error: history.jsonl:1: expected a JSON object", file=sys.stderr)
+            raise SystemExit(2)
+            """,
+        )
+        allowed, reason = self.wrapper.allow_send("pagi nov, kuliahnya jam berapa?")
+        self.assertTrue(allowed, f"rc=2 must fail open, got {reason!r}")
+        self.assertIn("2", reason)
+        self.assertTrue(
+            any("rc=2" in line for line in self.log_lines()),
+            f"a bad-input exit must be logged, log was {self.log_lines()}",
+        )
+
+    @unittest.expectedFailure
+    def test_exit_2_log_carries_the_guard_stderr(self):
+        """KNOWN GAP: the rc=2 log line drops the reason.
+
+        The rc=1 branch logs the last stderr line; the catch-all branch logs
+        only the code. Since rc=2 now means "a history line is corrupt", the
+        operator needs the line number the guard printed. Left unfixed here
+        because the wrapper was out of scope for this change.
+        """
+        self.wrapper.GUARD = self.write_script(
+            "rejecting_guard.py",
+            """
+            import sys
+            print("error: history.jsonl:7: expected a JSON object", file=sys.stderr)
+            raise SystemExit(2)
+            """,
+        )
+        self.wrapper.allow_send("cron snapshot selesai")
+        log = " ".join(self.log_lines())
+        self.assertIn("history.jsonl:7", log, "the guard's reason should reach the log")
+
+
 class ExplicitVerdictFailsClosed(WrapperTestCase):
     """A block that came from working rules is honoured."""
 
